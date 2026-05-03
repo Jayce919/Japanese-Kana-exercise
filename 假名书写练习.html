@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>假名书写练习 - 罗马音→假名 (ver.1)</title>
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #1d1d1f;
+            --border-color: #d2d2d7;
+            --correct-bg: #eafaf1;
+            --correct-color: #27ae60;
+            --wrong-bg: #fdecea;
+            --wrong-color: #eb5757;
+            --accent-color: #0071e3;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            --radius: 12px;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f5f5f7;
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 10px;
+        }
+
+        .container {
+            width: 95%;
+            max-width: 560px;
+            background: var(--bg-color);
+            padding: 32px 20px 24px;
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            text-align: center;
+            transition: background-color 0.3s ease;
+        }
+
+        /* ===== 统计栏 ===== */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #eee;
+        }
+        .stat-item { display: flex; flex-direction: column; }
+        .stat-label { font-size: 12px; color: #86868b; margin-bottom: 4px; }
+        .stat-value { font-size: 18px; font-weight: 600; }
+
+        /* ===== 题目 & 答案同行显示区 ===== */
+        .romaji-section {
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .display-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: center;
+            gap: 12px;
+            min-height: 90px;
+            flex-wrap: wrap;
+        }
+        #romaji-display {
+            font-size: 72px;
+            font-weight: 600;
+            color: var(--accent-color);
+            letter-spacing: 4px;
+            line-height: 1.2;
+        }
+        .answer-separator {
+            font-size: 36px;
+            color: #ccc;
+            font-weight: 300;
+            display: none;
+            transition: opacity 0.3s;
+        }
+        .answer-separator.visible { display: inline; }
+        #answer-inline {
+            display: none;
+            align-items: baseline;
+            justify-content: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        #answer-inline.visible {
+            display: flex;
+        }
+        .answer-kana {
+            font-size: 64px;
+            font-weight: 600;
+            color: var(--correct-color);
+            animation: fadeInRight 0.35s ease;
+            line-height: 1.2;
+        }
+        .answer-label {
+            font-size: 12px;
+            color: #86868b;
+            display: block;
+            margin-top: 2px;
+        }
+        .answer-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        @keyframes fadeInRight {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        .replay-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 16px;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            background: transparent;
+            cursor: pointer;
+            font-size: 13px;
+            color: #666;
+            margin-top: 6px;
+            transition: all 0.2s;
+        }
+        .replay-btn:active { background: #f0f0f0; }
+
+        /* ===== Canvas 书写区 ===== */
+        .canvas-wrapper {
+            position: relative;
+            background-color: #fdfdfd;
+            border: 2px solid var(--border-color);
+            border-radius: var(--radius);
+            margin-bottom: 8px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+            background-image:
+                linear-gradient(rgba(0,113,227,0.06) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,113,227,0.06) 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+        .canvas-wrapper.active {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.08);
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+            touch-action: none;
+        }
+
+        /* ===== Canvas 工具栏 ===== */
+        .canvas-tools {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .tool-btn {
+            padding: 6px 16px;
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            background: transparent;
+            cursor: pointer;
+            font-size: 13px;
+            color: #666;
+            transition: all 0.15s;
+        }
+        .tool-btn:active { background: #f0f0f0; }
+
+        /* ===== 主按钮 ===== */
+        .btn-group {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .btn {
+            padding: 12px 32px;
+            border-radius: 30px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: opacity 0.2s, transform 0.1s;
+            min-width: 110px;
+        }
+        .btn:active { opacity: 0.7; transform: scale(0.97); }
+        .btn-primary { background: var(--accent-color); color: white; }
+        .btn-outline { background: transparent; border: 1px solid var(--border-color); color: var(--text-color); }
+        .btn-primary:disabled { opacity: 0.4; cursor: default; }
+
+        /* ===== 筛选区 ===== */
+        .filter-section {
+            width: 100%;
+            padding: 14px 12px;
+            background: #fafafa;
+            border-radius: var(--radius);
+            margin-bottom: 10px;
+        }
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 14px;
+            margin-top: 6px;
+        }
+        label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            font-size: 14px;
+        }
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin-right: 5px;
+            accent-color: var(--accent-color);
+        }
+
+        .bottom-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            width: 100%;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .bottom-row label { font-size: 13px; }
+
+        .small-btn {
+            padding: 5px 14px;
+            border-radius: 14px;
+            border: 1px solid var(--border-color);
+            background: transparent;
+            cursor: pointer;
+            font-size: 12px;
+            color: #666;
+        }
+
+        /* ===== 响应式 ===== */
+        @media (max-width: 480px) {
+            .container { padding: 24px 14px 20px; }
+            #romaji-display { font-size: 48px; }
+            .answer-kana { font-size: 44px; }
+            .display-row { min-height: 66px; gap: 8px; }
+            .answer-separator { font-size: 26px; }
+            .stats-bar { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+            .btn { padding: 10px 24px; font-size: 15px; min-width: 90px; }
+            .canvas-wrapper { height: 170px !important; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container" id="main-card">
+    <!-- 统计栏 -->
+    <div class="stats-bar">
+        <div class="stat-item">
+            <span class="stat-label">已学</span>
+            <span id="stat-total" class="stat-value">0</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">已看答案</span>
+            <span id="stat-revealed" class="stat-value">0</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">正确</span>
+            <span id="stat-correct" class="stat-value">0</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">胜率</span>
+            <span id="stat-ratio" class="stat-value">--</span>
+        </div>
+    </div>
+
+    <!-- 题目 & 答案 同一行显示 -->
+    <div class="romaji-section">
+        <div class="display-row">
+            <span id="romaji-display">--</span>
+            <span class="answer-separator" id="answer-separator">→</span>
+            <span id="answer-inline"></span>
+        </div>
+        <button class="replay-btn" onclick="replaySound()" title="重播发音">🔊 重播发音</button>
+    </div>
+
+    <!-- Canvas 书写区 -->
+    <div class="canvas-wrapper" id="canvas-wrapper" style="height:200px;">
+        <canvas id="writing-canvas"></canvas>
+    </div>
+
+    <!-- Canvas 工具 -->
+    <div class="canvas-tools">
+        <button class="tool-btn" onclick="undoStroke()">↩ 撤销一笔</button>
+        <button class="tool-btn" onclick="clearCanvas()">✕ 清除全部</button>
+    </div>
+
+    <!-- 主按钮 -->
+    <div class="btn-group">
+        <button class="btn btn-primary" id="btn-reveal" onclick="revealAnswer()">显示答案</button>
+        <button class="btn btn-outline" id="btn-self-correct" onclick="selfReportCorrect()" style="display:none;">✓ 写对了</button>
+        <button class="btn btn-outline" id="btn-self-wrong" onclick="selfReportWrong()" style="display:none;">✗ 需再练</button>
+        <button class="btn btn-outline" onclick="nextQuestion()">下一题</button>
+    </div>
+
+    <!-- 筛选区 -->
+    <div class="controls">
+        <div class="filter-section">
+            <div class="checkbox-group">
+                <label><input type="checkbox" id="chk-hira" checked> 平假名</label>
+                <label><input type="checkbox" id="chk-kata"> 片假名</label>
+            </div>
+            <div class="checkbox-group">
+                <label><input type="checkbox" id="chk-seion" checked> 清音</label>
+                <label><input type="checkbox" id="chk-daku"> 浊/半浊</label>
+                <label><input type="checkbox" id="chk-youon"> 拗音</label>
+            </div>
+        </div>
+        <div class="bottom-row">
+            <label>
+                <input type="checkbox" id="chk-mistake-mode"> 只练错题 (<span id="wrong-count">0</span>)
+            </label>
+            <button class="small-btn" onclick="resetStats()">重置统计</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============================================================
+//  数据
+// ============================================================
+const DATA = [
+    // 平假名 清音
+    { kana: "あ", romaji: "a", type: "hiragana", group: "seion" }, { kana: "い", romaji: "i", type: "hiragana", group: "seion" }, { kana: "う", romaji: "u", type: "hiragana", group: "seion" }, { kana: "え", romaji: "e", type: "hiragana", group: "seion" }, { kana: "お", romaji: "o", type: "hiragana", group: "seion" },
+    { kana: "か", romaji: "ka", type: "hiragana", group: "seion" }, { kana: "き", romaji: "ki", type: "hiragana", group: "seion" }, { kana: "く", romaji: "ku", type: "hiragana", group: "seion" }, { kana: "け", romaji: "ke", type: "hiragana", group: "seion" }, { kana: "こ", romaji: "ko", type: "hiragana", group: "seion" },
+    { kana: "さ", romaji: "sa", type: "hiragana", group: "seion" }, { kana: "し", romaji: "shi", type: "hiragana", group: "seion" }, { kana: "す", romaji: "su", type: "hiragana", group: "seion" }, { kana: "せ", romaji: "se", type: "hiragana", group: "seion" }, { kana: "そ", romaji: "so", type: "hiragana", group: "seion" },
+    { kana: "た", romaji: "ta", type: "hiragana", group: "seion" }, { kana: "ち", romaji: "chi", type: "hiragana", group: "seion" }, { kana: "つ", romaji: "tsu", type: "hiragana", group: "seion" }, { kana: "て", romaji: "te", type: "hiragana", group: "seion" }, { kana: "と", romaji: "to", type: "hiragana", group: "seion" },
+    { kana: "な", romaji: "na", type: "hiragana", group: "seion" }, { kana: "に", romaji: "ni", type: "hiragana", group: "seion" }, { kana: "ぬ", romaji: "nu", type: "hiragana", group: "seion" }, { kana: "ね", romaji: "ne", type: "hiragana", group: "seion" }, { kana: "の", romaji: "no", type: "hiragana", group: "seion" },
+    { kana: "は", romaji: "ha", type: "hiragana", group: "seion" }, { kana: "ひ", romaji: "hi", type: "hiragana", group: "seion" }, { kana: "ふ", romaji: "fu", type: "hiragana", group: "seion" }, { kana: "へ", romaji: "he", type: "hiragana", group: "seion" }, { kana: "ほ", romaji: "ho", type: "hiragana", group: "seion" },
+    { kana: "ま", romaji: "ma", type: "hiragana", group: "seion" }, { kana: "み", romaji: "mi", type: "hiragana", group: "seion" }, { kana: "む", romaji: "mu", type: "hiragana", group: "seion" }, { kana: "め", romaji: "me", type: "hiragana", group: "seion" }, { kana: "も", romaji: "mo", type: "hiragana", group: "seion" },
+    { kana: "や", romaji: "ya", type: "hiragana", group: "seion" }, { kana: "ゆ", romaji: "yu", type: "hiragana", group: "seion" }, { kana: "よ", romaji: "yo", type: "hiragana", group: "seion" },
+    { kana: "ら", romaji: "ra", type: "hiragana", group: "seion" }, { kana: "り", romaji: "ri", type: "hiragana", group: "seion" }, { kana: "る", romaji: "ru", type: "hiragana", group: "seion" }, { kana: "れ", romaji: "re", type: "hiragana", group: "seion" }, { kana: "ろ", romaji: "ro", type: "hiragana", group: "seion" },
+    { kana: "わ", romaji: "wa", type: "hiragana", group: "seion" }, { kana: "を", romaji: "wo", type: "hiragana", group: "seion" }, { kana: "ん", romaji: "n", type: "hiragana", group: "seion" },
+
+    // 片假名 清音
+    { kana: "ア", romaji: "a", type: "katakana", group: "seion" }, { kana: "イ", romaji: "i", type: "katakana", group: "seion" }, { kana: "ウ", romaji: "u", type: "katakana", group: "seion" }, { kana: "エ", romaji: "e", type: "katakana", group: "seion" }, { kana: "オ", romaji: "o", type: "katakana", group: "seion" },
+    { kana: "カ", romaji: "ka", type: "katakana", group: "seion" }, { kana: "キ", romaji: "ki", type: "katakana", group: "seion" }, { kana: "ク", romaji: "ku", type: "katakana", group: "seion" }, { kana: "ケ", romaji: "ke", type: "katakana", group: "seion" }, { kana: "コ", romaji: "ko", type: "katakana", group: "seion" },
+    { kana: "サ", romaji: "sa", type: "katakana", group: "seion" }, { kana: "シ", romaji: "shi", type: "katakana", group: "seion" }, { kana: "ス", romaji: "su", type: "katakana", group: "seion" }, { kana: "セ", romaji: "se", type: "katakana", group: "seion" }, { kana: "ソ", romaji: "so", type: "katakana", group: "seion" },
+    { kana: "タ", romaji: "ta", type: "katakana", group: "seion" }, { kana: "チ", romaji: "chi", type: "katakana", group: "seion" }, { kana: "ツ", romaji: "tsu", type: "katakana", group: "seion" }, { kana: "テ", romaji: "te", type: "katakana", group: "seion" }, { kana: "ト", romaji: "to", type: "katakana", group: "seion" },
+    { kana: "ナ", romaji: "na", type: "katakana", group: "seion" }, { kana: "ニ", romaji: "ni", type: "katakana", group: "seion" }, { kana: "ヌ", romaji: "nu", type: "katakana", group: "seion" }, { kana: "ネ", romaji: "ne", type: "katakana", group: "seion" }, { kana: "ノ", romaji: "no", type: "katakana", group: "seion" },
+    { kana: "ハ", romaji: "ha", type: "katakana", group: "seion" }, { kana: "ヒ", romaji: "hi", type: "katakana", group: "seion" }, { kana: "フ", romaji: "fu", type: "katakana", group: "seion" }, { kana: "ヘ", romaji: "he", type: "katakana", group: "seion" }, { kana: "ホ", romaji: "ho", type: "katakana", group: "seion" },
+    { kana: "マ", romaji: "ma", type: "katakana", group: "seion" }, { kana: "ミ", romaji: "mi", type: "katakana", group: "seion" }, { kana: "ム", romaji: "mu", type: "katakana", group: "seion" }, { kana: "メ", romaji: "me", type: "katakana", group: "seion" }, { kana: "モ", romaji: "mo", type: "katakana", group: "seion" },
+    { kana: "ヤ", romaji: "ya", type: "katakana", group: "seion" }, { kana: "ユ", romaji: "yu", type: "katakana", group: "seion" }, { kana: "ヨ", romaji: "yo", type: "katakana", group: "seion" },
+    { kana: "ラ", romaji: "ra", type: "katakana", group: "seion" }, { kana: "リ", romaji: "ri", type: "katakana", group: "seion" }, { kana: "ル", romaji: "ru", type: "katakana", group: "seion" }, { kana: "レ", romaji: "re", type: "katakana", group: "seion" }, { kana: "ロ", romaji: "ro", type: "katakana", group: "seion" },
+    { kana: "ワ", romaji: "wa", type: "katakana", group: "seion" }, { kana: "ヲ", romaji: "wo", type: "katakana", group: "seion" }, { kana: "ン", romaji: "n", type: "katakana", group: "seion" },
+
+    // 平假名 浊音/半浊音
+    { kana: "が", romaji: "ga", type: "hiragana", group: "daku" }, { kana: "ぎ", romaji: "gi", type: "hiragana", group: "daku" }, { kana: "ぐ", romaji: "gu", type: "hiragana", group: "daku" }, { kana: "げ", romaji: "ge", type: "hiragana", group: "daku" }, { kana: "ご", romaji: "go", type: "hiragana", group: "daku" },
+    { kana: "ざ", romaji: "za", type: "hiragana", group: "daku" }, { kana: "じ", romaji: "ji", type: "hiragana", group: "daku" }, { kana: "ず", romaji: "zu", type: "hiragana", group: "daku" }, { kana: "ぜ", romaji: "ze", type: "hiragana", group: "daku" }, { kana: "ぞ", romaji: "zo", type: "hiragana", group: "daku" },
+    { kana: "だ", romaji: "da", type: "hiragana", group: "daku" }, { kana: "ぢ", romaji: "ji", type: "hiragana", group: "daku" }, { kana: "づ", romaji: "zu", type: "hiragana", group: "daku" }, { kana: "で", romaji: "de", type: "hiragana", group: "daku" }, { kana: "ど", romaji: "do", type: "hiragana", group: "daku" },
+    { kana: "ば", romaji: "ba", type: "hiragana", group: "daku" }, { kana: "び", romaji: "bi", type: "hiragana", group: "daku" }, { kana: "ぶ", romaji: "bu", type: "hiragana", group: "daku" }, { kana: "べ", romaji: "be", type: "hiragana", group: "daku" }, { kana: "ぼ", romaji: "bo", type: "hiragana", group: "daku" },
+    { kana: "ぱ", romaji: "pa", type: "hiragana", group: "daku" }, { kana: "ぴ", romaji: "pi", type: "hiragana", group: "daku" }, { kana: "ぷ", romaji: "pu", type: "hiragana", group: "daku" }, { kana: "ぺ", romaji: "pe", type: "hiragana", group: "daku" }, { kana: "ぽ", romaji: "po", type: "hiragana", group: "daku" },
+
+    // 片假名 浊音/半浊音
+    { kana: "ガ", romaji: "ga", type: "katakana", group: "daku" }, { kana: "ギ", romaji: "gi", type: "katakana", group: "daku" }, { kana: "グ", romaji: "gu", type: "katakana", group: "daku" }, { kana: "ゲ", romaji: "ge", type: "katakana", group: "daku" }, { kana: "ゴ", romaji: "go", type: "katakana", group: "daku" },
+    { kana: "ザ", romaji: "za", type: "katakana", group: "daku" }, { kana: "ジ", romaji: "ji", type: "katakana", group: "daku" }, { kana: "ズ", romaji: "zu", type: "katakana", group: "daku" }, { kana: "ゼ", romaji: "ze", type: "katakana", group: "daku" }, { kana: "ゾ", romaji: "zo", type: "katakana", group: "daku" },
+    { kana: "ダ", romaji: "da", type: "katakana", group: "daku" }, { kana: "ヂ", romaji: "ji", type: "katakana", group: "daku" }, { kana: "ヅ", romaji: "zu", type: "katakana", group: "daku" }, { kana: "デ", romaji: "de", type: "katakana", group: "daku" }, { kana: "ド", romaji: "do", type: "katakana", group: "daku" },
+    { kana: "バ", romaji: "ba", type: "katakana", group: "daku" }, { kana: "ビ", romaji: "bi", type: "katakana", group: "daku" }, { kana: "ブ", romaji: "bu", type: "katakana", group: "daku" }, { kana: "ベ", romaji: "be", type: "katakana", group: "daku" }, { kana: "ボ", romaji: "bo", type: "katakana", group: "daku" },
+    { kana: "パ", romaji: "pa", type: "katakana", group: "daku" }, { kana: "ピ", romaji: "pi", type: "katakana", group: "daku" }, { kana: "プ", romaji: "pu", type: "katakana", group: "daku" }, { kana: "ペ", romaji: "pe", type: "katakana", group: "daku" }, { kana: "ポ", romaji: "po", type: "katakana", group: "daku" },
+
+    // 平假名 拗音
+    { kana: "きゃ", romaji: "kya", type: "hiragana", group: "youon" }, { kana: "きゅ", romaji: "kyu", type: "hiragana", group: "youon" }, { kana: "きょ", romaji: "kyo", type: "hiragana", group: "youon" },
+    { kana: "しゃ", romaji: "sha", type: "hiragana", group: "youon" }, { kana: "しゅ", romaji: "shu", type: "hiragana", group: "youon" }, { kana: "しょ", romaji: "sho", type: "hiragana", group: "youon" },
+    { kana: "ちゃ", romaji: "cha", type: "hiragana", group: "youon" }, { kana: "ちゅ", romaji: "chu", type: "hiragana", group: "youon" }, { kana: "ちょ", romaji: "cho", type: "hiragana", group: "youon" },
+    { kana: "にゃ", romaji: "nya", type: "hiragana", group: "youon" }, { kana: "にゅ", romaji: "nyu", type: "hiragana", group: "youon" }, { kana: "にょ", romaji: "nyo", type: "hiragana", group: "youon" },
+    { kana: "ひゃ", romaji: "hya", type: "hiragana", group: "youon" }, { kana: "ひゅ", romaji: "hyu", type: "hiragana", group: "youon" }, { kana: "ひょ", romaji: "hyo", type: "hiragana", group: "youon" },
+    { kana: "みゃ", romaji: "mya", type: "hiragana", group: "youon" }, { kana: "みゅ", romaji: "myu", type: "hiragana", group: "youon" }, { kana: "みょ", romaji: "myo", type: "hiragana", group: "youon" },
+    { kana: "りゃ", romaji: "rya", type: "hiragana", group: "youon" }, { kana: "りゅ", romaji: "ryu", type: "hiragana", group: "youon" }, { kana: "りょ", romaji: "ryo", type: "hiragana", group: "youon" },
+    { kana: "ぎゃ", romaji: "gya", type: "hiragana", group: "youon" }, { kana: "ぎゅ", romaji: "gyu", type: "hiragana", group: "youon" }, { kana: "ぎょ", romaji: "gyo", type: "hiragana", group: "youon" },
+    { kana: "じゃ", romaji: "ja",  type: "hiragana", group: "youon" }, { kana: "じゅ", romaji: "ju",  type: "hiragana", group: "youon" }, { kana: "じょ", romaji: "jo",  type: "hiragana", group: "youon" },
+    { kana: "びゃ", romaji: "bya", type: "hiragana", group: "youon" }, { kana: "びゅ", romaji: "byu", type: "hiragana", group: "youon" }, { kana: "びょ", romaji: "byo", type: "hiragana", group: "youon" },
+    { kana: "ぴゃ", romaji: "pya", type: "hiragana", group: "youon" }, { kana: "ぴゅ", romaji: "pyu", type: "hiragana", group: "youon" }, { kana: "ぴょ", romaji: "pyo", type: "hiragana", group: "youon" },
+
+    // 片假名 拗音
+    { kana: "キャ", romaji: "kya", type: "katakana", group: "youon" }, { kana: "キュ", romaji: "kyu", type: "katakana", group: "youon" }, { kana: "キョ", romaji: "kyo", type: "katakana", group: "youon" },
+    { kana: "シャ", romaji: "sha", type: "katakana", group: "youon" }, { kana: "シュ", romaji: "shu", type: "katakana", group: "youon" }, { kana: "ショ", romaji: "sho", type: "katakana", group: "youon" },
+    { kana: "チャ", romaji: "cha", type: "katakana", group: "youon" }, { kana: "チュ", romaji: "chu", type: "katakana", group: "youon" }, { kana: "チョ", romaji: "cho", type: "katakana", group: "youon" },
+    { kana: "ニャ", romaji: "nya", type: "katakana", group: "youon" }, { kana: "ニュ", romaji: "nyu", type: "katakana", group: "youon" }, { kana: "ニョ", romaji: "nyo", type: "katakana", group: "youon" },
+    { kana: "ヒャ", romaji: "hya", type: "katakana", group: "youon" }, { kana: "ヒュ", romaji: "hyu", type: "katakana", group: "youon" }, { kana: "ヒョ", romaji: "hyo", type: "katakana", group: "youon" },
+    { kana: "ミャ", romaji: "mya", type: "katakana", group: "youon" }, { kana: "ミュ", romaji: "myu", type: "katakana", group: "youon" }, { kana: "ミョ", romaji: "myo", type: "katakana", group: "youon" },
+    { kana: "リャ", romaji: "rya", type: "katakana", group: "youon" }, { kana: "リュ", romaji: "ryu", type: "katakana", group: "youon" }, { kana: "リョ", romaji: "ryo", type: "katakana", group: "youon" },
+    { kana: "ギャ", romaji: "gya", type: "katakana", group: "youon" }, { kana: "ギュ", romaji: "gyu", type: "katakana", group: "youon" }, { kana: "ギョ", romaji: "gyo", type: "katakana", group: "youon" },
+    { kana: "ジャ", romaji: "ja",  type: "katakana", group: "youon" }, { kana: "ジュ", romaji: "ju",  type: "katakana", group: "youon" }, { kana: "ジョ", romaji: "jo",  type: "katakana", group: "youon" },
+    { kana: "ビャ", romaji: "bya", type: "katakana", group: "youon" }, { kana: "ビュ", romaji: "byu", type: "katakana", group: "youon" }, { kana: "ビョ", romaji: "byo", type: "katakana", group: "youon" },
+    { kana: "ピャ", romaji: "pya", type: "katakana", group: "youon" }, { kana: "ピュ", romaji: "pyu", type: "katakana", group: "youon" }, { kana: "ピョ", romaji: "pyo", type: "katakana", group: "youon" }
+];
+
+// ============================================================
+//  状态
+// ============================================================
+let currentRomaji = null;
+let currentAnswers = [];
+let answerRevealed = false;
+let filteredRomaji = [];
+let romajiAnswerMap = {};
+let wrongSet = new Set();
+let stats = { total: 0, revealed: 0, correct: 0 };
+let strokes = [];
+let isDrawing = false;
+let currentStroke = [];
+
+// ============================================================
+//  DOM 引用
+// ============================================================
+const els = {
+    romajiDisplay: document.getElementById('romaji-display'),
+    answerInline: document.getElementById('answer-inline'),
+    answerSeparator: document.getElementById('answer-separator'),
+    canvasWrapper: document.getElementById('canvas-wrapper'),
+    canvas: document.getElementById('writing-canvas'),
+    btnReveal: document.getElementById('btn-reveal'),
+    btnSelfCorrect: document.getElementById('btn-self-correct'),
+    btnSelfWrong: document.getElementById('btn-self-wrong'),
+    statTotal: document.getElementById('stat-total'),
+    statRevealed: document.getElementById('stat-revealed'),
+    statCorrect: document.getElementById('stat-correct'),
+    statRatio: document.getElementById('stat-ratio'),
+    wrongCount: document.getElementById('wrong-count')
+};
+
+const ctx = els.canvas.getContext('2d');
+
+// ============================================================
+//  Canvas 初始化
+// ============================================================
+function resizeCanvas() {
+    const wrapper = els.canvasWrapper;
+    const rect = wrapper.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = rect.width;
+    const h = rect.height;
+    els.canvas.width = w * dpr;
+    els.canvas.height = h * dpr;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(dpr, dpr);
+    drawGrid(w, h);
+    redrawStrokes();
+}
+
+function drawGrid(w, h) {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    ctx.clearRect(0, 0, els.canvas.width, els.canvas.height);
+    ctx.scale(dpr, dpr);
+
+    ctx.strokeStyle = 'rgba(0,113,227,0.10)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 8]);
+    ctx.beginPath();
+    ctx.moveTo(w / 2, 0);
+    ctx.lineTo(w / 2, h);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, h / 2);
+    ctx.lineTo(w, h / 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+}
+
+function redrawStrokes() {
+    const w = els.canvasWrapper.getBoundingClientRect().width;
+    const h = els.canvasWrapper.getBoundingClientRect().height;
+    drawGrid(w, h);
+    for (const stroke of strokes) {
+        drawStroke(stroke);
+    }
+}
+
+function drawStroke(points) {
+    if (points.length < 2) {
+        if (points.length === 1) {
+            const p = points[0];
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.w * 1.5, 0, Math.PI * 2);
+            ctx.fillStyle = '#1d1d1f';
+            ctx.fill();
+        }
+        return;
+    }
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (let i = 1; i < points.length; i++) {
+        const p0 = points[i - 1];
+        const p1 = points[i];
+        const midX = (p0.x + p1.x) / 2;
+        const midY = (p0.y + p1.y) / 2;
+        const width = p1.w;
+        ctx.beginPath();
+        ctx.moveTo(p0.x, p0.y);
+        ctx.quadraticCurveTo(p0.x, p0.y, midX, midY);
+        ctx.strokeStyle = '#1d1d1f';
+        ctx.lineWidth = width;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(midX, midY);
+        ctx.quadraticCurveTo(p1.x, p1.y, p1.x, p1.y);
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
+function getCanvasPos(e) {
+    const rect = els.canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+
+function handlePointerDown(e) {
+    e.preventDefault();
+    const pos = getCanvasPos(e);
+    const pressure = e.pressure || 0.5;
+    const w = Math.max(2, Math.min(10, pressure * 8));
+    currentStroke = [{ x: pos.x, y: pos.y, w: w }];
+    isDrawing = true;
+    els.canvasWrapper.classList.add('active');
+    els.canvas.setPointerCapture(e.pointerId);
+}
+
+function handlePointerMove(e) {
+    if (!isDrawing) return;
+    e.preventDefault();
+    const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    for (const ev of events) {
+        const p = getCanvasPos(ev);
+        const pressure = ev.pressure || 0.5;
+        const w = Math.max(2, Math.min(10, pressure * 8));
+        currentStroke.push({ x: p.x, y: p.y, w: w });
+    }
+    redrawStrokes();
+    drawStroke(currentStroke);
+}
+
+function handlePointerUp(e) {
+    if (!isDrawing) return;
+    e.preventDefault();
+    isDrawing = false;
+    els.canvasWrapper.classList.remove('active');
+    if (currentStroke.length > 0) {
+        strokes.push(currentStroke);
+    }
+    currentStroke = [];
+    els.canvas.releasePointerCapture(e.pointerId);
+}
+
+function handlePointerLeave(e) {
+    if (!isDrawing) return;
+    isDrawing = false;
+    els.canvasWrapper.classList.remove('active');
+    if (currentStroke.length > 0) {
+        strokes.push(currentStroke);
+    }
+    currentStroke = [];
+}
+
+function undoStroke() {
+    if (answerRevealed) return;
+    strokes.pop();
+    redrawStrokes();
+}
+
+function clearCanvas() {
+    if (answerRevealed) return;
+    strokes = [];
+    currentStroke = [];
+    const w = els.canvasWrapper.getBoundingClientRect().width;
+    const h = els.canvasWrapper.getBoundingClientRect().height;
+    drawGrid(w, h);
+}
+
+function initCanvas() {
+    els.canvas.addEventListener('pointerdown', handlePointerDown);
+    els.canvas.addEventListener('pointermove', handlePointerMove);
+    els.canvas.addEventListener('pointerup', handlePointerUp);
+    els.canvas.addEventListener('pointerleave', handlePointerLeave);
+    els.canvas.addEventListener('pointercancel', handlePointerLeave);
+    window.addEventListener('resize', () => {
+        resizeCanvas();
+    });
+    resizeCanvas();
+}
+
+// ============================================================
+//  题目逻辑
+// ============================================================
+function buildRomajiMap() {
+    const useHira = document.getElementById('chk-hira').checked;
+    const useKata = document.getElementById('chk-kata').checked;
+    const useSeion = document.getElementById('chk-seion').checked;
+    const useDaku = document.getElementById('chk-daku').checked;
+    const useYouon = document.getElementById('chk-youon').checked;
+    const mistakeMode = document.getElementById('chk-mistake-mode').checked;
+
+    const filtered = DATA.filter(item => {
+        const typeMatch = (useHira && item.type === 'hiragana') || (useKata && item.type === 'katakana');
+        const groupMatch = (useSeion && item.group === 'seion') || (useDaku && item.group === 'daku') || (useYouon && item.group === 'youon');
+        return typeMatch && groupMatch;
+    });
+
+    romajiAnswerMap = {};
+    for (const item of filtered) {
+        if (!romajiAnswerMap[item.romaji]) {
+            romajiAnswerMap[item.romaji] = [];
+        }
+        romajiAnswerMap[item.romaji].push(item);
+    }
+
+    if (mistakeMode) {
+        filteredRomaji = [...wrongSet].filter(r => romajiAnswerMap[r]);
+    } else {
+        filteredRomaji = Object.keys(romajiAnswerMap);
+    }
+
+    els.wrongCount.innerText = wrongSet.size;
+}
+
+function pickQuestion() {
+    buildRomajiMap();
+
+    if (filteredRomaji.length === 0) {
+        els.romajiDisplay.innerText = '---';
+        currentRomaji = null;
+        currentAnswers = [];
+        return;
+    }
+
+    let next;
+    do {
+        next = filteredRomaji[Math.floor(Math.random() * filteredRomaji.length)];
+    } while (next === currentRomaji && filteredRomaji.length > 1);
+
+    currentRomaji = next;
+    currentAnswers = romajiAnswerMap[next] || [];
+}
+
+function showQuestion() {
+    answerRevealed = false;
+    clearCanvas();
+
+    els.romajiDisplay.innerText = currentRomaji;
+    els.answerInline.classList.remove('visible');
+    els.answerInline.innerHTML = '';
+    els.answerSeparator.classList.remove('visible');
+    els.btnReveal.style.display = '';
+    els.btnReveal.disabled = false;
+    els.btnSelfCorrect.style.display = 'none';
+    els.btnSelfWrong.style.display = 'none';
+
+    if (currentAnswers.length > 0) {
+        speak(currentAnswers[0].kana);
+    }
+}
+
+function nextQuestion() {
+    pickQuestion();
+    if (filteredRomaji.length === 0) {
+        els.romajiDisplay.innerText = '---';
+        els.answerInline.classList.add('visible');
+        els.answerInline.innerHTML = '<span style="color:#86868b;font-size:16px;">请至少选择一个分类</span>';
+        els.answerSeparator.classList.add('visible');
+        els.btnReveal.style.display = 'none';
+        els.btnSelfCorrect.style.display = 'none';
+        els.btnSelfWrong.style.display = 'none';
+        return;
+    }
+    stats.total++;
+    updateStatsUI();
+    showQuestion();
+}
+
+function revealAnswer() {
+    if (answerRevealed || !currentRomaji) return;
+    answerRevealed = true;
+    stats.revealed++;
+    els.btnReveal.disabled = true;
+
+    // 构建答案 HTML，显示在罗马音同一行
+    let html = '';
+    for (const item of currentAnswers) {
+        const typeLabel = item.type === 'hiragana' ? '平假名' : '片假名';
+        const groupLabel = item.group === 'seion' ? '清音' : item.group === 'daku' ? '浊/半浊音' : '拗音';
+        html += `<span class="answer-item">
+            <span class="answer-kana">${item.kana}</span>
+            <span class="answer-label">${typeLabel} · ${groupLabel}</span>
+        </span>`;
+    }
+    els.answerInline.innerHTML = html;
+    els.answerInline.classList.add('visible');
+    els.answerSeparator.classList.add('visible');
+
+    els.btnSelfCorrect.style.display = '';
+    els.btnSelfWrong.style.display = '';
+
+    updateStatsUI();
+}
+
+function selfReportCorrect() {
+    if (!answerRevealed) return;
+    stats.correct++;
+    updateStatsUI();
+    nextQuestion();
+}
+
+function selfReportWrong() {
+    if (!answerRevealed) return;
+    wrongSet.add(currentRomaji);
+    els.wrongCount.innerText = wrongSet.size;
+    updateStatsUI();
+    nextQuestion();
+}
+
+function replaySound() {
+    if (currentAnswers.length > 0) {
+        speak(currentAnswers[0].kana);
+    } else if (currentRomaji) {
+        const u = new SpeechSynthesisUtterance(currentRomaji);
+        u.lang = 'ja-JP';
+        u.rate = 0.9;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(u);
+    }
+}
+
+// ============================================================
+//  发音
+// ============================================================
+function speak(text) {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const msg = new SpeechSynthesisUtterance(text);
+    msg.lang = 'ja-JP';
+    msg.rate = 1.0;
+    window.speechSynthesis.speak(msg);
+}
+
+// ============================================================
+//  统计
+// ============================================================
+function updateStatsUI() {
+    els.statTotal.innerText = stats.total;
+    els.statRevealed.innerText = stats.revealed;
+    els.statCorrect.innerText = stats.correct;
+    const rate = stats.revealed === 0 ? '--' : Math.round((stats.correct / stats.revealed) * 100) + '%';
+    els.statRatio.innerText = rate;
+}
+
+function resetStats() {
+    stats = { total: 0, revealed: 0, correct: 0 };
+    wrongSet.clear();
+    updateStatsUI();
+    els.wrongCount.innerText = 0;
+    nextQuestion();
+}
+
+// ============================================================
+//  初始化
+// ============================================================
+function init() {
+    initCanvas();
+
+    document.querySelectorAll('input[type="checkbox"]').forEach(el => {
+        el.addEventListener('change', () => {
+            if (el.id === 'chk-mistake-mode') {
+                nextQuestion();
+            } else {
+                buildRomajiMap();
+            }
+        });
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            if (!answerRevealed) {
+                revealAnswer();
+            } else if (els.btnSelfCorrect.style.display !== 'none') {
+                nextQuestion();
+            }
+        }
+        if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            nextQuestion();
+        }
+        if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            undoStroke();
+        }
+    });
+
+    buildRomajiMap();
+    nextQuestion();
+}
+
+init();
+</script>
+</body>
+</html>
